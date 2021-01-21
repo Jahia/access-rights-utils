@@ -52,12 +52,12 @@
     <parent>
         <artifactId>jahia-modules</artifactId>
         <groupId>org.jahia.modules</groupId>
-        <version>7.3.5.0</version>
+        <version>7.3.0.0</version>
     </parent>
     <groupId>org.jahia.modules</groupId>
     <artifactId>access-rights-utils</artifactId>
     <name>Access rights utils</name>
-    <version>1.0-SNAPSHOT</version>    
+    <version>1.0-SNAPSHOT</version>
     <packaging>bundle</packaging>
     <description>This is the custom module (Access rights utils) for running on a Digital Experience Manager server.</description>
 
@@ -65,6 +65,11 @@
         <connection>scm:dummy:uri</connection>
         <developerConnection>scm:dummy:uri</developerConnection>
     </scm>
+
+    <properties>
+        <jahia-depends>default</jahia-depends>
+        <jahia-module-type>system</jahia-module-type>
+    </properties>
 
     <repositories>
         <repository>
@@ -81,18 +86,14 @@
         </repository>
     </repositories>
 
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.felix</groupId>
-                <artifactId>maven-bundle-plugin</artifactId>
-                <extensions>true</extensions>
-                <configuration>
-                    <instructions>
-                        <Jahia-Depends>default</Jahia-Depends>
-                    </instructions>
-                </configuration>
-            </plugin>
-        </plugins>
-    </build>
+    <distributionManagement>
+        <repository>
+            <id>ps-releases</id>
+            <url>https://devtools.jahia.com/nexus/content/repositories/jahia-professional-services-public-repository</url>
+        </repository>
+        <snapshotRepository>
+            <id>ps-snapshots</id>
+            <url>https://devtools.jahia.com/nexus/content/repositories/jahia-professional-services-private-repository</url>
+        </snapshotRepository>
+    </distributionManagement>
 </project>
