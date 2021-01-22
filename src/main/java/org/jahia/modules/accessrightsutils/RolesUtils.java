@@ -3,6 +3,7 @@ package org.jahia.modules.accessrightsutils;
 import org.apache.commons.collections.Closure;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.time.FastDateFormat;
 import org.jahia.api.Constants;
@@ -45,6 +46,10 @@ public class RolesUtils {
     private static final String STMT = "SELECT * FROM [jnt:role] WHERE ISDESCENDANTNODE('/roles')";
 
     public List<String> dumpRolesToFile() throws RepositoryException {
+        return dumpRolesToFile("filesystem");
+    }
+
+    public List<String> dumpRolesToFile(String location) throws RepositoryException {
 
         final boolean[] interrupted = {false};
 
@@ -117,24 +122,61 @@ public class RolesUtils {
         });
 
         if (!interrupted[0]) {
-            final File outputDir = new File(System.getProperty("java.io.tmpdir"), "roles-reports");
-            final boolean folderCreated = outputDir.exists() || outputDir.mkdirs();
-            if (folderCreated && outputDir.canWrite()) {
-                final File jsonFile = new File(outputDir, String.format("roles-report-%s.json",
-                        FastDateFormat.getInstance("yyyy_MM_dd-HH_mm_ss_SSS").format(System.currentTimeMillis())));
-                try {
-                    jsonFile.createNewFile();
-                    FileUtils.writeStringToFile(jsonFile, report.toString(), StandardCharsets.UTF_8);
-                    log.info("Written the report in " + jsonFile.getPath());
-                } catch (IOException e) {
-                    log.error("Impossible to write the report", e);
-                }
-            } else {
-                log.error("Impossible to write the folder " + outputDir.getPath());
+            final String target = location == null ? StringUtils.EMPTY : location.trim().toLowerCase();
+            switch (target) {
+                case "filesystem":
+                    writeDumpOnTheFilesystem(report, log);
+                    break;
+                case "jcr":
+                    writeDumpInTheJCR(report, log);
+                    break;
+                default:
+                    log.error("Unexpected location to write the dump: " + location);
             }
         }
 
         return log.getBuffer();
+    }
+
+    private void writeDumpOnTheFilesystem(JSONObject report, ScriptLogger log) {
+        final File outputDir = new File(System.getProperty("java.io.tmpdir"), "roles-reports");
+        final boolean folderCreated = outputDir.exists() || outputDir.mkdirs();
+        if (folderCreated && outputDir.canWrite()) {
+            final String filename = String.format("roles-report-%s.json",
+                    FastDateFormat.getInstance("yyyy_MM_dd-HH_mm_ss_SSS").format(System.currentTimeMillis()));
+            final File jsonFile = new File(outputDir, filename);
+            try {
+                jsonFile.createNewFile();
+                FileUtils.writeStringToFile(jsonFile, report.toString(), StandardCharsets.UTF_8);
+                log.info("Written the report in " + jsonFile.getPath());
+            } catch (IOException e) {
+                log.error("Impossible to write the report", e);
+            }
+        } else {
+            log.error("Impossible to write the folder " + outputDir.getPath());
+        }
+    }
+
+    private void writeDumpInTheJCR(JSONObject report, ScriptLogger log) throws RepositoryException {
+        JCRTemplate.getInstance().doExecuteWithSystemSessionAsUser(null, WORKSPACE, null, new JCRCallback<Void>() {
+            @Override
+            public Void doInJCR(JCRSessionWrapper session) throws RepositoryException {
+                final JCRNodeWrapper filesFolder = session.getNode("/sites/systemsite/files");
+                final JCRNodeWrapper outputDir = filesFolder.hasNode("roles-reports") ?
+                        filesFolder.getNode("roles-reports") :
+                        filesFolder.addNode("roles-report", Constants.JAHIANT_FOLDER);
+                if (!outputDir.isNodeType(Constants.JAHIANT_FOLDER)) {
+                    log.error(String.format("Impossible to write the folder %s of type %s", outputDir.getPath(), outputDir.getPrimaryNodeTypeName()));
+                    return null;
+                }
+                final String filename = String.format("roles-report-%s.json",
+                        FastDateFormat.getInstance("yyyy_MM_dd-HH_mm_ss_SSS").format(System.currentTimeMillis()));
+                final JCRNodeWrapper reportNode = outputDir.uploadFile(filename, IOUtils.toInputStream(report.toString()), "application/json");
+                session.save();
+                log.info("Written the report in " + reportNode.getPath());
+                return null;
+            }
+        });
     }
 
     public List<String> runRolesComparison(String dumpedRolesPath, String localOnlyRolesToDelete, String missingRolesToCreate, String resetDifferentRoles) throws RepositoryException {
