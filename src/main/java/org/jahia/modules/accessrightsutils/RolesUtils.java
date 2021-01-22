@@ -321,6 +321,7 @@ public class RolesUtils {
                 CollectionUtils.forAllDo(CollectionUtils.disjunction(locPropValues, refPropValues), new Closure() {
                     @Override
                     public void execute(Object input) {
+                        if (StringUtils.isBlank((String) input)) return;
                         differences.add(String.format("%s configured only on the %s role: %s",
                                 label,
                                 locPropValues.contains(input) ? "local" : "reference",
