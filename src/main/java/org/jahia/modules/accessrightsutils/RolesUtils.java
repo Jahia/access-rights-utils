@@ -464,7 +464,7 @@ public class RolesUtils {
                             if (roleJsonObject.has("externalPermissions")) {
                                 final JSONObject externalPermissions = roleJsonObject.getJSONObject("externalPermissions");
                                 if (operation == OPERATION.RESET) {
-                                    final List<JCRNodeWrapper> externalPermissionNodes = JCRContentUtils.getChildrenOfType(role, "externalPermissions");
+                                    final List<JCRNodeWrapper> externalPermissionNodes = JCRContentUtils.getChildrenOfType(role, "jnt:externalPermissions");
                                     if (CollectionUtils.isNotEmpty(externalPermissionNodes)) {
                                         for (JCRNodeWrapper externalPermission : externalPermissionNodes) {
                                             if (!externalPermissions.has(externalPermission.getName()))
@@ -482,7 +482,7 @@ public class RolesUtils {
                                 }
                             } else {
                                 if (operation == OPERATION.RESET) {
-                                    final List<JCRNodeWrapper> externalPermissions = JCRContentUtils.getChildrenOfType(role, "externalPermissions");
+                                    final List<JCRNodeWrapper> externalPermissions = JCRContentUtils.getChildrenOfType(role, "jnt:externalPermissions");
                                     if (CollectionUtils.isNotEmpty(externalPermissions)) {
                                         for (JCRNodeWrapper externalPermission : externalPermissions) {
                                             externalPermission.remove();
