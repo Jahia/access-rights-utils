@@ -492,7 +492,7 @@ public class RolesUtils {
                             }
                             session.save();
                             failedToWrite.remove(roleName);
-                            log.info(String.format("   - %s the role %s", StringUtils.capitalize(operation.actionDone), roleName));
+                            log.info(String.format("* %s the role %s", StringUtils.capitalize(operation.actionDone), roleName));
                         } catch (JSONException | RepositoryException e) {
                             log.error(String.format("Impossible to %s the role %s", operation.action, roleName), e);
                             return null;
@@ -541,7 +541,7 @@ public class RolesUtils {
         });
 
         if (!failedToWrite.isEmpty()) {
-            log.error(String.format("   - Failed to %s the role(s): %s", operation.action, failedToWrite));
+            log.error(String.format("* Failed to %s the role(s): %s", operation.action, failedToWrite));
         }
     }
 
