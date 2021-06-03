@@ -549,7 +549,7 @@ public class RolesUtils {
         });
 
         if (!failedToWrite.isEmpty()) {
-            log.error(String.format("* Failed to %s the role(s): %s", operation.action, failedToWrite));
+            log.error(String.format(" * Failed to %s the role(s): %s", operation.action, failedToWrite));
         }
     }
 
