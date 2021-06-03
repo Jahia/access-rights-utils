@@ -385,9 +385,13 @@ public class RolesUtils {
     }
 
     private void deleteLocalOnlyRoles(String conf, Set<String> localOnlyRoles, ScriptLogger log, boolean[] interrupted) throws RepositoryException {
-        if (StringUtils.isBlank(conf) || CollectionUtils.isEmpty(localOnlyRoles)) return;
-        final boolean deleteAll = "*".equals(conf.trim());
+        if (StringUtils.isBlank(conf)) return;
+        if (CollectionUtils.isEmpty(localOnlyRoles)) {
+            log.warn(" * No local role to delete");
+            return;
+        }
         final List<String> rolesToDelete = Arrays.asList(StringUtils.split(conf));
+        final boolean deleteAll = rolesToDelete.contains("*");
         final Set<String> failedToDelete = deleteAll ? new HashSet<>(localOnlyRoles) : new HashSet<>(rolesToDelete);
 
         JCRTemplate.getInstance().doExecuteWithSystemSessionAsUser(null, WORKSPACE, null, new JCRCallback<Void>() {
@@ -416,7 +420,7 @@ public class RolesUtils {
         });
 
         if (!failedToDelete.isEmpty()) {
-            log.error(String.format("   - Failed to delete the role(s): %s", failedToDelete));
+            log.error(String.format(" * Failed to delete the role(s): %s", failedToDelete));
         }
     }
 
@@ -429,9 +433,13 @@ public class RolesUtils {
     }
 
     private void writeRoles(OPERATION operation, String conf, Set<String> candidateRoles, JSONObject referenceRoles, ScriptLogger log, boolean[] interrupted) throws RepositoryException {
-        if (StringUtils.isBlank(conf) || CollectionUtils.isEmpty(candidateRoles)) return;
-        final boolean writeAll = "*".equals(conf.trim());
+        if (StringUtils.isBlank(conf)) return;
+        if (CollectionUtils.isEmpty(candidateRoles)) {
+            log.warn(String.format(" * No role to %s", operation.action));
+            return;
+        }
         final List<String> rolesToWrite = Arrays.asList(StringUtils.split(conf));
+        final boolean writeAll = rolesToWrite.contains("*");
         final Set<String> failedToWrite = writeAll ? new HashSet<>(candidateRoles) : new HashSet<>(rolesToWrite);
 
         JCRTemplate.getInstance().doExecuteWithSystemSessionAsUser(null, WORKSPACE, null, new JCRCallback<Void>() {
