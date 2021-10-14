@@ -15,6 +15,8 @@ import org.jahia.services.content.JCRSessionWrapper;
 import org.jahia.services.content.JCRTemplate;
 import org.jahia.services.content.decorator.JCRFileNode;
 import org.jahia.services.query.QueryWrapper;
+import org.jahia.settings.SettingsBean;
+import org.jahia.taglibs.functions.Functions;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -31,6 +33,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -38,12 +41,16 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class RolesUtils {
 
     private static final Logger logger = LoggerFactory.getLogger(RolesUtils.class);
     private static final String WORKSPACE = Constants.EDIT_WORKSPACE;
     private static final String STMT = "SELECT * FROM [jnt:role] WHERE ISDESCENDANTNODE('/roles')";
+    private static final String DEFAULT_ERRORS_PREFIX = "\\!/";
+
+    private String errorsPrefix = "\\!/";
 
     public List<String> dumpRolesToFile() throws RepositoryException {
         return dumpRolesToFile("filesystem");
@@ -52,6 +59,7 @@ public class RolesUtils {
     public List<String> dumpRolesToFile(String location) throws RepositoryException {
 
         final boolean[] interrupted = {false};
+        errorsPrefix = defaultValue(getConfiguration("module.accessRightsUtils.errorsPrefix"), DEFAULT_ERRORS_PREFIX);
 
         final ScriptLogger log = new ScriptLogger(logger);
 
@@ -60,7 +68,7 @@ public class RolesUtils {
             public JSONObject doInJCR(JCRSessionWrapper session) throws RepositoryException {
                 final QueryWrapper query = session.getWorkspace().getQueryManager().createQuery(STMT, Query.JCR_SQL2);
                 final JCRNodeIteratorWrapper nodes = query.execute().getNodes();
-                final JSONObject report = new JSONObject();
+                final JSONObject report = new SortedJSONObject();
                 while (nodes.hasNext()) {
                     if (System.getProperty("interruptScript") != null) {
                         log.info("Script interrupted");
@@ -69,7 +77,7 @@ public class RolesUtils {
                         return null;
                     }
                     final Node role = nodes.nextNode();
-                    final JSONObject roleJSON = new JSONObject();
+                    final JSONObject roleJSON = new SortedJSONObject();
                     try {
                         report.put(role.getName(), roleJSON);
                         roleJSON.put("path", role.getPath());
@@ -88,10 +96,10 @@ public class RolesUtils {
                             if (roleJSON.has("externalPermissions")) {
                                 extPermRootJSON = roleJSON.getJSONObject("externalPermissions");
                             } else {
-                                extPermRootJSON = new JSONObject();
+                                extPermRootJSON = new SortedJSONObject();
                                 roleJSON.put("externalPermissions", extPermRootJSON);
                             }
-                            final JSONObject extPermJSON = new JSONObject();
+                            final JSONObject extPermJSON = new SortedJSONObject();
                             extPermRootJSON.put(extPerm.getName(), extPermJSON);
                             dumpPropertyValue(extPermJSON, extPerm, "j:path");
                             dumpPropertyValue(extPermJSON, extPerm, "j:permissionNames", true);
@@ -114,10 +122,14 @@ public class RolesUtils {
                     json.put(pName, node.getProperty(pName).getString());
                     return;
                 }
+                final List<String> values = new ArrayList<>();
                 for (Value v : node.getProperty(pName).getValues()) {
-                    json.accumulate(pName, v.getString());
+                    values.add(v.getString());
                 }
-
+                Collections.sort(values);
+                for (String v : values) {
+                    json.accumulate(pName, v);
+                }
             }
         });
 
@@ -171,6 +183,7 @@ public class RolesUtils {
                 }
                 final String filename = String.format("roles-report-%s.json",
                         FastDateFormat.getInstance("yyyy_MM_dd-HH_mm_ss_SSS").format(System.currentTimeMillis()));
+                
                 final JCRNodeWrapper reportNode = outputDir.uploadFile(filename, IOUtils.toInputStream(report.toString()), "application/json");
                 session.save();
                 log.info("Written the report in " + reportNode.getPath());
@@ -182,6 +195,7 @@ public class RolesUtils {
     public List<String> runRolesComparison(String dumpedRolesPath, String localOnlyRolesToDelete, String missingRolesToCreate, String resetDifferentRoles) throws RepositoryException {
 
         final boolean[] interrupted = {false};
+        errorsPrefix = defaultValue(getConfiguration("module.accessRightsUtils.errorsPrefix"), DEFAULT_ERRORS_PREFIX);
 
         final ScriptLogger log = new ScriptLogger(logger);
 
@@ -224,7 +238,7 @@ public class RolesUtils {
 
         final JSONObject report;
         try {
-            report = new JSONObject(jsonString);
+            report = new SortedJSONObject(jsonString);
         } catch (JSONException jsonException) {
             if (!log.isDebugEnabled())
                 log.error("The specified file is not a valid JSON file");
@@ -387,7 +401,7 @@ public class RolesUtils {
     private void deleteLocalOnlyRoles(String conf, Set<String> localOnlyRoles, ScriptLogger log, boolean[] interrupted) throws RepositoryException {
         if (StringUtils.isBlank(conf)) return;
         if (CollectionUtils.isEmpty(localOnlyRoles)) {
-            log.warn(" * No local role to delete");
+            log.warn(String.format(" %s No local role to delete", errorsPrefix));
             return;
         }
         final List<String> rolesToDelete = Arrays.asList(StringUtils.split(conf));
@@ -420,7 +434,7 @@ public class RolesUtils {
         });
 
         if (!failedToDelete.isEmpty()) {
-            log.error(String.format(" * Failed to delete the role(s): %s", failedToDelete));
+            log.error(String.format(" %s The following roles can't be deleted as they do not exist on the local server: %s", errorsPrefix, failedToDelete));
         }
     }
 
@@ -435,7 +449,7 @@ public class RolesUtils {
     private void writeRoles(OPERATION operation, String conf, Set<String> candidateRoles, JSONObject referenceRoles, ScriptLogger log, boolean[] interrupted) throws RepositoryException {
         if (StringUtils.isBlank(conf)) return;
         if (CollectionUtils.isEmpty(candidateRoles)) {
-            log.warn(String.format(" * No role to %s", operation.action));
+            log.warn(String.format(" %s No role to %s", errorsPrefix, operation.action));
             return;
         }
         final List<String> rolesToWrite = Arrays.asList(StringUtils.split(conf));
@@ -524,7 +538,7 @@ public class RolesUtils {
                     return;
                 }
 
-                final List<Value> values = new ArrayList<Value>();
+                final List<Value> values = new ArrayList<>();
                 final Object o = json.get(pName);
                 if (o instanceof String) {
                     values.add(role.getSession().getValueFactory().createValue((String) o));
@@ -548,20 +562,33 @@ public class RolesUtils {
             }
         });
 
-        if (!failedToWrite.isEmpty()) {
-            log.error(String.format(" * Failed to %s the role(s): %s", operation.action, failedToWrite));
+        final Map<Boolean, List<String>> failedToWriteByCause = failedToWrite.stream().collect(Collectors.partitioningBy(referenceRoles::has));
+        if (CollectionUtils.isNotEmpty(failedToWriteByCause.get(true))) {
+            log.error(String.format(" %s Failed to %s the roles as they are not defined in the JSON file: %s", errorsPrefix, operation.action, failedToWrite));
+        }
+        if (CollectionUtils.isNotEmpty(failedToWriteByCause.get(false))) {
+            log.error(String.format(" %s Failed to %s the roles %s: %s", errorsPrefix, operation.action, operation.failureMsg, failedToWrite));
         }
     }
 
+    private String defaultValue(String value, String defaultValue) {
+        return (String) Functions.defaultValue(value, defaultValue);
+    }
+
+    private String getConfiguration(String conf) {
+        return defaultValue(System.getProperty(conf), SettingsBean.getInstance().getPropertiesFile().getProperty(conf));
+    }
+
     private enum OPERATION {
-        CREATE("create", "created"),
-        RESET("reset", "reset");
+        CREATE("create", "created", "as they already exist on the local server"),
+        RESET("reset", "reset", "as there's no difference between the local role and the one in the JSON file");
 
-        private final String action, actionDone;
+        private final String action, actionDone, failureMsg;
 
-        OPERATION(String action, String actionDone) {
+        OPERATION(String action, String actionDone, String failureMsg) {
             this.action = action;
             this.actionDone = actionDone;
+            this.failureMsg = failureMsg;
         }
     }
 }

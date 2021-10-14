@@ -68,4 +68,22 @@ public class ScriptLogger {
     public boolean isDebugEnabled() {
         return logger.isDebugEnabled();
     }
+
+    public void warn(String msg) {
+        warn(msg, null);
+    }
+
+    public void warn(String msg, Throwable t) {
+        if (!logger.isWarnEnabled()) return;
+        buffer.add(msg);
+        if (t == null) {
+            logger.warn(msg);
+        } else {
+            logger.warn(msg, t);
+        }
+    }
+
+    public boolean isWarnEnabled() {
+        return logger.isWarnEnabled();
+    }
 }
