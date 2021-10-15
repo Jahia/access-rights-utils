@@ -62,8 +62,9 @@
     <description>This is the custom module (Access rights utils) for running on a Digital Experience Manager server.</description>
 
     <scm>
-        <connection>scm:dummy:uri</connection>
-        <developerConnection>scm:dummy:uri</developerConnection>
+        <connection>scm:git:git@github.com:Jahia/access-rights-utils</connection>
+        <developerConnection>scm:git:git@github.com:Jahia/access-rights-utils</developerConnection>
+        <tag>HEAD</tag>
     </scm>
 
     <properties>
